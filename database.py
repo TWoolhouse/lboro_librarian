@@ -2,7 +2,7 @@ import csv
 from datetime import date, datetime
 from typing import Callable, Generator, Iterable, TypeAlias, TypeVar
 
-DB_FILE = "database.1.txt"
+DB_FILE = "database.txt"
 LOG_FILE = "logfile.txt"
 FIELD_NAMES_BOOK = ("id", "title", "author", "genre", "purchase", "member")
 FIELD_VISUAL_BOOK = ("id", "title", "author", "purchase", "member")
