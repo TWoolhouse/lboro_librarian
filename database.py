@@ -82,6 +82,9 @@ def checkout():
     """Writes the logs back to the logfile"""
     _write(LOG_FILE, str_log, FIELD_NAMES_LOG, logs())
 
+def fmt_id(id: int) -> str:
+	return f"#{id:0{len(str(len(books())))}d}"
+
 def from_id(id: int) -> Book:
     """Retuns book object from a book ID"""
     for book in books():
