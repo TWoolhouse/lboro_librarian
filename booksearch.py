@@ -1,10 +1,23 @@
-from typing import Generator, Iterable
-import database as db
-from bookcheckout import find_log, checked_out
+"""Searching for books and groups
+using a set of search terms.
+Uses generators to reduce extra time spent computing values
+"""
 
-def is_in(book: db.Book, area: str, terms: Iterable[str]) -> Generator[bool, None, None]:
+from typing import Generator, Iterable, Iterator
+import database.database as db
+
+def is_in(book: dict[str, str], area: str, terms: Iterable[str]) -> Generator[bool, None, None]:
+    """Return an Iterator of bools for each term in terms whether it is found in any of the areas of book
+
+    area: the key in the dict of book
+    Generator as to not compare every term when not all are needed.
+    """
     return (term in (v if isinstance(v := book[area], str) else db.fmt_id(v)).lower() for term in terms)
-def find_in(book: db.Book, terms: Iterable[str], *areas: str) -> bool:
+def find_in(book: dict[str, str], terms: Iterable[str], *areas: str) -> bool:
+    """Return a bool if all terms can be found in one of any of the areas
+
+    areas: keys of the book dict to check.
+    """
     return all(map(any, zip(*map(lambda area: is_in(book, area, terms), areas))))
 
 def search(title: str) -> list[db.Book]:
@@ -12,19 +25,26 @@ def search(title: str) -> list[db.Book]:
     return [b for b in db.books() if title == b["title"]]
 
 def fuzzy(term: str) -> Generator[db.Book, None, None]:
+    """Performs a fuzzy search over the id, title, and author
+
+    The term is split over the spaces and provides the required terms.
+    Generator of Books as they are needed.
+    """
     terms = term.strip().lower().split()
     return (b for b in db.books() if find_in(b, terms, "id", "title", "author"))
 
-def fuzzy_id(id: str) -> list[db.Book]:
-    return [book for book in db.books() if id in str(book["id"])]
-
-def old(data: list[db.Book]=None, threshold: int=60) -> list[db.Book]:
-    return [b for b in (db.books() if data is None else data) if checked_out(b) and find_log(b)["date_in"]]
+def fuzzy_id(id: str) -> Iterator[db.Book]:
+    """Return books with a partial id number match"""
+    return (book for book in db.books() if id in str(book["id"]))
 
 active_groups: list[db.Group] = []
+
 def generate_group(term: str) -> list[db.Group]:
+    """Return list of groups which match the search terms
+
+    It also caches the result in the active_groups variable.
+    """
     global active_groups
     terms = term.strip().lower().split()
-    group: set[tuple[str, str, str]] = {tuple(b[i] for i in db.FIELD_NAMES_GROUP) for b in db.books() if find_in(b, terms, "title", "author")}
-    active_groups = [dict(zip(db.FIELD_NAMES_GROUP, i)) for i in sorted(group)]
+    active_groups = [g for g in db.groups() if find_in(g, terms, "title", "author")]
     return active_groups
