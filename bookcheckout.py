@@ -35,8 +35,8 @@ def active_log(book: db.Book) -> db.Log:
     raise ValueError("Book is not checked-out") from None
 
 def get_log(book: db.Book) -> db.Log | dict:
-    """Get the
-
+    """Get the first log for this book
+    or an empty log if one does not exist.
     """
     try:
         return find_log(book)
@@ -67,3 +67,18 @@ def checkout(book: db.Book, member: db.Member) -> bool:
     db.members().add(member)
     db.logs().append(db.make_log(book["id"], member, date.today(), None))
     return True
+
+if __name__ == "__main__":
+    import random
+
+    print("Checked Out:")
+    assert not checked_out({"member": ""}), "Checked-out Failed"
+    assert checked_out({"member": "COTW"}), "Checked-out Failed"
+    print("Passed")
+    print("Find Log:")
+    lid = random.choice(db.logs())["id"]
+    assert find_log(db.from_id(lid))["id"] == lid, "Find Log Failure"
+    print("Passed")
+    print("Get Log:")
+    assert get_log({"id": -1}) == {}, "Get Log Found Wrong Log"
+    print("Passed")

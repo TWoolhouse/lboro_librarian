@@ -48,3 +48,21 @@ def generate_group(term: str) -> list[db.Group]:
     terms = term.strip().lower().split()
     active_groups = [g for g in db.groups() if find_in(g, terms, "title", "author")]
     return active_groups
+
+if __name__ == "__main__":
+
+    print("Is In:")
+    assert all(is_in({"a": "hello", "b": "world"}, "a", ["lo", "he"])), "Is In not all in one area"
+    assert not any(is_in({"a": "hello", "b": "world"}, "b", ["lo", "he"])), "Is In none in one area"
+    print("Passed")
+    print("Find In:")
+    assert find_in({"a": "hello", "b": "world", "c": "testing"}, ["lo", "he", "est"], "a", "b", "c"), "Find In did not find all"
+    assert not find_in({"a": "hello", "b": "world", "c": "testing"}, ["lo", "he", "est"], "a", "b"), "Find In found some"
+    print("Passed")
+    print("Search:")
+    orwell = search("1984")
+    assert orwell, "No 1984 books found"
+    print("Passed")
+    print("Fuzzy:")
+    assert sum(1 for _ in fuzzy("19 Orw")) == len(orwell) + 1, "Should find only 1984 and 1 animal farm"
+    print("Passed")

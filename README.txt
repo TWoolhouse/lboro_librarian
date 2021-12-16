@@ -24,7 +24,6 @@ Usage:
 
 
 Recommendation Engine:
-
 Firstly, it undergoes an initialization phase, to parse the statistics on the
 entire database using the logfile. When a user wants a recommendation, it takes
 the most read genres of that member and returns all books which contain those
@@ -35,3 +34,6 @@ single genres. This allows a match percentage to be calculated for each book.
 
 Docstrings: I have used Python's type hints to describe the data type taken by
 each parameter in a function as well as document it's return type.
+
+Testing: Modules can be tested by running them individually and will pass as
+long as no assertions are hit nor any runtime errors are produced.

@@ -1,3 +1,12 @@
+"""The recommendation system is able to continually new books for a member.
+
+It uses the genres and global reading data to determine the best matches.
+It'll return books in order of highest match and then most popular.
+A 100% match means the book contains all the genres the system has
+determined the member like the most, based on how many they've read
+from said genres.
+"""
+
 import itertools
 from collections import defaultdict
 from typing import Generator, Iterable, Iterator, Sequence, TypeAlias
@@ -7,7 +16,14 @@ Genre: TypeAlias = str
 Recommendation: TypeAlias = tuple[db.GroupHash, int]
 # A GroupHash and its matches
 
-def engine_init() -> tuple[dict[Genre, int], dict[int, int], dict[Genre, set[db.GroupHash]]]:
+def engine_init() -> tuple[dict[Genre, int], dict[db.GroupHash, int], dict[Genre, set[db.GroupHash]]]:
+    """Initializes the recommendation engine by creating global state.
+
+    Returns:
+        The every read genre and the count.
+        The read count of every group.
+        A lookup of genres to the books which contain said genre.
+    """
     genres: dict[Genre, int] = defaultdict(int)
     read: dict[db.GroupHash, int] = defaultdict(int)
     genre_groups: dict[Genre, set[db.GroupHash]] = defaultdict(set)

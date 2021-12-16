@@ -188,3 +188,31 @@ def group_table() -> dict[GroupHash, Group]:
 def groups() -> Iterable[Group]:
     """Returns an Iterable of every group."""
     return group_table().values()
+
+if __name__ == "__main__":
+    import random
+
+    DB_FILE = f"{PATH}database.txt"
+    LOG_FILE = f"{PATH}logfile.txt"
+
+    # Loads all values from the database
+    print("Books:", len(books()))
+    print("Logs:", len(logs()))
+    print("Groups:", len(groups()))
+    print("Members:", len(members()))
+
+    print("Hash Group & Make Group:")
+    b = random.choice(books())
+    assert hash_group(b) == hash_group(make_group_book(b)), "Make Group Failure"
+    print("Passed")
+    print("From ID:")
+    try:    from_id(-1)
+    except KeyError:    pass
+    assert from_id(b["id"]) == b, "From ID Failure"
+    print("Passed")
+
+    # Saves Database
+    save()
+    checkout()
+
+    # No runtime errors
