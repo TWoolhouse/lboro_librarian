@@ -1,10 +1,15 @@
-# Main entry point
+"""Menu for Librarian software
+
+Intergrates all other modules functionality,
+using tkinter to produce the GUI.
+"""
+
 
 import string
-from collections import defaultdict
-import tkinter as tk
-import tkinter.ttk as ttk
 import tkinter.font
+import tkinter as tk
+from tkinter import ttk
+from collections import defaultdict
 from typing import Any, Callable, Generator, Iterable, Iterator, Literal, TypeAlias, TypeVar
 
 import matplotlib.pyplot as plt
@@ -22,16 +27,17 @@ import bookrecommend as recommend
 import database.database as db
 from database.database import Member, fmt_id
 
+# Field names for the column headers of tables
 FIELD_SEARCH_BOOK = ("id", "purchase", "member", "date_out", "date_in")
 FIELD_RETCHECK = ("id", "title", "author", "member", "date_out", "date_in")
 FIELD_MEMBER_BOOK = ("id", "days", "title")
 FIELD_MEMBER = ("member",)
 FIELD_REC = ("match", "reads", "title", "author")
 
-WIDTH, HEIGHT = 1280, 720 # 720
+WIDTH, HEIGHT = 1280, 720
 FONT = 11
-CHAR_SIZE = 1
-CHAR_HEIGHT = 1
+CHAR_SIZE = 1 # Dynamic
+CHAR_HEIGHT = 1 # Dynamic
 TITLE = "Library"
 
 ICONS = {
@@ -58,7 +64,13 @@ state: dict[str, Any] = {
 }
 
 T = TypeVar("T", bound=tk.Widget)
-def pack(area: Literal['search', 'retcheck', 'checkout', 'return', 'recommend'] | tuple[Literal['search', 'retcheck', 'checkout', 'return', 'recommend'], ...] | None, w: T, **params) -> T:
+def pack(area: Literal['search', 'retcheck', 'checkout', 'return', 'recommend']
+             | tuple[Literal['search', 'retcheck', 'checkout', 'return', 'recommend'], ...]
+             | None,
+         w: T, **params) -> T:
+    """Takes and returns a tk.Widget after storing its geometry packing
+    information, or packing it immediately if None is passed to 'area'
+    """
     if isinstance(area, str):
         area = (area,)
     elif area is None:
@@ -70,6 +82,10 @@ def pack(area: Literal['search', 'retcheck', 'checkout', 'return', 'recommend'] 
 
 V = TypeVar("V", bound=tk.Variable)
 def variable(name: str, var: V=None) -> V:
+    """Takes and returns a tk.Variable after storing it in the state manager.
+    If no var is passed, returns the variable of corresponding name
+    from the state manager.
+    """
     if var is not None:
         state["var"][name] = var
     return state["var"][name]
@@ -81,14 +97,22 @@ active: dict[str, str | db.Book | db.Group | db.Member] = {
     "group": {"title": "", "author": ""},
     "member": "",
 }
+# Callbacks to execute when a new component is selected
 active_callbacks: dict[str, list[Callable[[Any], Any]]] = {
     "book": [],
     "group": [],
     "member": [],
 }
 def on_cb(key: Literal['book', 'group', 'member'], func: Callable[[Any], Any]):
+    """Append function to callbacks such that it will be executed
+    when the corresponding component is updated.
+    """
     active_callbacks[key].append(func)
 def active_update(key: str, value: Any) -> Any:
+    """Updates the requested component or returns it.
+    If new, will activate the status updater (for the bottom bar)
+    and execute all callbacks.
+    """
     if value is not None:
         active["now"] = key
         if (b := active[key]) == value:
@@ -99,14 +123,21 @@ def active_update(key: str, value: Any) -> Any:
             cb(value)
     return active[key]
 def active_book(book: db.Book=None) -> db.Book:
+    """Gets and Sets the current Book."""
     return active_update("book", book)
 def active_group(group: db.Group=None) -> db.Group:
+    """Gets and Sets the current Book Group."""
     return active_update("group", group)
 def active_member(member: db.Member=None) -> db.Member:
+    """Gets and Sets the current Member."""
     return active_update("member", member)
 
 # --- Screen Setup --- #
 def setup_screen(parent: tk.Tk) -> tk.Tk:
+    """Generates the main window layout.
+
+    parent: The root widget.
+    """
     parent.title("Library")
 
     # Set default font to be used everywhere
@@ -116,11 +147,6 @@ def setup_screen(parent: tk.Tk) -> tk.Tk:
     CHAR_SIZE = font.measure(" ")
     CHAR_HEIGHT = font.metrics("linespace")
     parent.option_add("*Font", font)
-
-    resize_cb = lambda e: resize(e.widget)
-    parent.bind("<Configure>", resize_cb)
-    parent.bind("<<Maximize>>", resize_cb)
-    parent.bind("<<Minimize>>", resize_cb)
 
     # Dynamic width & height
     width, height = WIDTH, HEIGHT
@@ -135,6 +161,10 @@ def setup_screen(parent: tk.Tk) -> tk.Tk:
 
 STATUS_FIELDS = ("ID", "Title", "Author", "Genre", "Member", "Purchase")
 def setup_status_bar(parent: tk.Misc) -> tk.Widget:
+    """Creates the status bar at the bottom.
+
+    Creates a label for all fields in STATUS_FIELDS.
+    """
     PAD = 4
     BG = "#43b8bf"
     bar = tk.Frame(parent, width=WIDTH, height=6+CHAR_HEIGHT, bg=BG)
@@ -155,6 +185,7 @@ def setup_status_bar(parent: tk.Misc) -> tk.Widget:
     return bar
 
 def setup_side_bar(parent, height: int):
+    """Creates the Side Navigation Bar."""
     bar = tk.Frame(parent, width=100, bg="white", height=height, relief="groove", border=1)
 
     for t,f in (("search",lambda: show_page("search")), ("retcheck",lambda: show_page("retcheck")), ("recommend",lambda: show_page("recommend"))):
@@ -165,6 +196,7 @@ def setup_side_bar(parent, height: int):
     return bar
 
 def setup_mainarea(parent):
+    """Creates the central main frame."""
     frame = state["main"] = tk.Frame(parent, bg="#CCC", relief="sunken", border=1)
 
     setup_main_search(frame)
@@ -175,12 +207,18 @@ def setup_mainarea(parent):
     return frame
 
 def setup_main_search(parent: tk.Frame):
+    """Creates all widgets needed for the search panel.
+
+    The packing information is stored in the global state manager.
+    So it can be retrived later when "show_page()" is called.
+    """
     ws: dict[str, Any] = {
         "tree": [],
         # "checkout": tk.Button(),
     }
     state["search"] = ws
 
+    # Left and right Frames
     frames = [tk.Frame(parent, relief=tk.GROOVE, border=1) for _ in range(2)]
     for f in frames:
         pack("search", f, side=tk.LEFT, expand=True, fill=tk.BOTH)
@@ -213,6 +251,11 @@ def setup_main_search(parent: tk.Frame):
     configure_tree(tree, (("id", False), "date", "member", "date", "date"))
 
 def setup_main_retcheck(parent: tk.Frame):
+    """Creates all widgets needed for the search panel.
+
+    The packing information is stored in the global state manager.
+    So it can be retrived later when "show_page()" is called.
+    """
     ws: dict[str, Any] = {
         # "main": tk.Frame,
     }
@@ -221,7 +264,6 @@ def setup_main_retcheck(parent: tk.Frame):
     ws["main"] = f_main
     for frame in frames:
         pack("retcheck", frame, side=tk.LEFT, expand=True, fill=tk.BOTH)
-        # frame.pack_propagate(False)
 
     # --- Left Side --- #
     var, tree = create_search_tree(
@@ -241,6 +283,7 @@ def setup_main_retcheck(parent: tk.Frame):
     configure_tree(tree, ("id", ("title", True), ("author", True), "member", "date", "date"), False)
 
     # --- Right Side --- #
+    # retcheck is left panel, checkout and return are the panel on the right depending on the current state.
     rcr = ("retcheck", "checkout", "return")
     ws["title"] = pack(rcr, tk.Label(f_main, text="Checkout / Return", relief="raised", border=1), pady=3, side=tk.TOP, fill=tk.X)
 
@@ -265,6 +308,14 @@ def setup_main_retcheck(parent: tk.Frame):
     retcheck_member_cb()
 
 def setup_main_recommend(parent: tk.Frame):
+    """Creates all widgets needed for the search panel.
+
+    Page is split into a notebook with two pages.
+    Both are initialized here.
+
+    The packing information is stored in the global state manager.
+    So it can be retrived later when "show_page()" is called.
+    """
     ws: dict[str, Any] = {
         "plot": {},
         "data": {
@@ -301,6 +352,7 @@ def setup_main_recommend(parent: tk.Frame):
     configure_tree(tree, (("match", False), ("reads", False), "title", "author"))
 
 def setup_figure(parent: tk.Frame):
+    """Setups tkinter and matplotlib integration."""
     fig = Figure(figsize=(24, 24), dpi=100)
     canvas = FigureCanvasTkAgg(fig, master=parent)  # A tk.DrawingArea.
 
@@ -319,6 +371,15 @@ def create_search_tree(
     var_name: str,
     fieldnames: Iterable[str],
 ) -> tuple[tk.StringVar, ttk.Treeview]:
+    """Creates a treeview widget with a text box and label above.
+
+    area: See pack function.
+    entry_cb: Callback function for when text is input to the textbox.
+    tree_cb: Callback when an element is selected in the treeview.
+    label_text: Text to display at the top of this stack.
+    var_name: See variable function.
+    fieldnames: Used for the table columns.
+    """
     pack(area, tk.Label(parent, text=label_text), side=tk.TOP, fill=tk.X)
     var = variable(var_name, tk.StringVar(parent))
     var.trace_add("write", entry_cb)
@@ -327,6 +388,10 @@ def create_search_tree(
     return var, tree
 
 def create_tree(area: str | Iterable[str], parent: tk.Frame, tree_cb: Callable[[tk.Event], Any], fieldnames: Iterable[str]) -> tuple[ttk.Treeview, ttk.Scrollbar]:
+    """Creates a treeview with a scrollbar.
+
+    See create_search_tree for parameters.
+    """
     frame = tk.Frame(parent)
     tree = ttk.Treeview(frame, columns=fieldnames, show="headings")
     for key in fieldnames:
@@ -345,6 +410,11 @@ def create_tree(area: str | Iterable[str], parent: tk.Frame, tree_cb: Callable[[
     return tree, sb
 
 def configure_tree(tree: ttk.Treeview, size_names: Iterable[str | tuple[str, bool]], stretch=True):
+    """Configures the width of the trees columns.
+
+    Uses strings defined in CHAR_LEN dict.
+    If a bool is passed with a string, it's used for the stretch parameter.
+    """
     for col, sn in enumerate(size_names, start=1):
         if isinstance(sn, str):
             name, strtch = sn, stretch
@@ -356,6 +426,11 @@ def configure_tree(tree: ttk.Treeview, size_names: Iterable[str | tuple[str, boo
 # --- Tabs --- #
 
 def iter_rec() -> Generator[recommend.Recommendation, None, None]:
+    """Iterates over the recommendations.
+
+    Stores the previous recommendations so the engine doesn't have
+    to run every time the data is needed. The results are cached.
+    """
     data = state["recommend"]["data"]
     member = active_member()
     if data["member"] != member:
@@ -373,21 +448,12 @@ def iter_rec() -> Generator[recommend.Recommendation, None, None]:
         yield item
 
 def rec_size(size: int) -> Iterator[recommend.Recommendation]:
+    """Returns an iterator with a maximum number of recommendation of size."""
     for tup, _ in zip(iter_rec(), range(size)):
         yield tup
 
-def split_name(name: str) -> str:
-    out = ""
-    while len(name) > 15:
-        ind = name.find(" ", 15)
-        if ind == -1:
-            ind = 15
-        out += name[:ind] + "\n"
-        name = name[ind:]
-    out += name
-    return out
-
 def plot_matches_data(data: Iterator[recommend.Recommendation]):
+    """Creates the data for match percentage plot."""
     matches: dict[float, int] = defaultdict(int)
     for _, percent in data:
         matches[percent] += 1
@@ -395,6 +461,7 @@ def plot_matches_data(data: Iterator[recommend.Recommendation]):
     return {k / total_genres * 100 : v for k,v in matches.items()}
 
 def tab_plots_new(member: Member):
+    """On a new member, redraws the plots with new data."""
     if not db.valid_member(member) or state["recommend"]["data"]["member"] == member:	return
 
     plots = state["recommend"]["plot"]
@@ -411,6 +478,7 @@ def tab_plots_new(member: Member):
 on_cb("member", tab_plots_new)
 
 def tab_plot_matches(ax: plt.Axes, data: dict[float, int]):
+    """Plots the match percentage chart and gives axis lables."""
     ax.clear()
     if data:
         ax.plot(*zip(*data.items()), "bo-")
@@ -422,6 +490,7 @@ def tab_plot_matches(ax: plt.Axes, data: dict[float, int]):
     ax.set_ybound(0, max(1, max(data.values() if data else (0,))+1))
 
 def tab_plot_reads(ax: plt.Axes, data: dict[str, int]):
+    """Plots the read genres and sets axis labels."""
     ax.clear()
     minsize = 0
     while len(data) > 25:
@@ -436,22 +505,37 @@ def tab_plot_reads(ax: plt.Axes, data: dict[str, int]):
     ax.set_ybound(0, max(1, max(data.values() if data else (0,))))
 
 def tab_table_cb(tree: ttk.Treeview):
+    """Callback for the recommendation table to set the active group."""
     value = get_tree_selection(tree)
     if value is None:	return
     active_group(db.group_table()[db.hash_group(dict(zip(FIELD_REC, value)))])
 
 # --- Show Page --- #
 def show(parent: tk.Widget, children: dict[tk.Widget, dict[str, Any]]):
+    """Shows all the widgets in children, by repacking them with the provided data.
+
+    Deletes the current children of parent.
+    """
     for child in parent.pack_slaves():
         child.pack_forget()
     for w, p in children.items():
         w.pack(**p)
 
 def show_page(title: Literal['search', 'retcheck', 'recommend']):
+    """Shows one of the 3 main pages.
+
+    By forgetting and repacking the previously created wigets
+    it produces a showing and hiding effect.
+
+    It changes the title accordingly.
+    """
     show(state["main"], state["pack"][title])
     root.title(f"{TITLE} - {title.replace('retcheck', 'Checkout / Return').title()} {ICONS[title.lower()]}")
 
 def show_retcheck_page(title: Literal['checkout', 'return']):
+    """Updates the right hand panel on retcheck depending on which
+    state it should be in.
+    """
     show(state["retcheck"]["main"], state["pack"][title])
     root.title(f"{TITLE} - {title.title()} {ICONS['retcheck']}")
 
@@ -463,6 +547,7 @@ COLOURS: dict[str, Colour] = {
     "over": "#ff6b6b", # Overdue
 }
 def colour_lookup(book: db.Book) -> Colour:
+    """Return a Colour based on the current loan status of a book."""
     try:
         log = checkout.active_log(book)
         if checkout.days(book) > 60:
@@ -472,17 +557,28 @@ def colour_lookup(book: db.Book) -> Colour:
         return COLOURS["in"]
 
 def fmt_title(title: str) -> str:
+    """Formats Book Title's to be more presentable."""
+    # The CSV needs to escape commas in the title names
+    # So here they are removed before being shown
     return title.replace("\"", "")
 def fmt_member(member: db.Member) -> str:
+    """Formats Member IDs."""
     return member.upper()
 def fmt_genre(genres: list[str]) -> str:
+    """Formats the Genre list to cut off if too long."""
     return ", ".join(genres[:3]) + (", ..." if len(genres) > 3 else "")
 def fmt_match(match: float) -> str:
+    """Formats the match % to be rounded."""
     return f"{match:.2f}%"
 
 def fmt_retcheck_btn(text: str) -> str:
+    """Text on for the checkout / return button.
+
+    Too prevent the panel from resizing, the text is padded.
+    """
     return f"{text.strip(): ^{20+len(fmt_id(0))}}"
 
+# Length of different column types
 CHAR_LEN = {
     "date": 10,
     "member": 6,
@@ -490,24 +586,41 @@ CHAR_LEN = {
     "title": 40,
     "author": 17,
     "days": 4,
-    "stitle": 10,
+    "stitle": 10, # short title
     "match": 8,
     "reads": 9,
 }
 
 def fmt_field(key: str, value: Any) -> str:
+    """Converts a single field to a string.
+
+    Uses a custom formatter if defined in the global namespace,
+    otherwise just calls str.
+    """
     return globals().get(f"fmt_{key}", str)(value)
 def fmt(obj: dict[str, Any]) -> dict[str, str]:
+    """Formats every field in the dict."""
     return {k: fmt_field(k,v) for k,v in obj.items()}
 
 def decompose_fmt_id(id: str) -> db.Book:
+    """Returns a book from the formatted book ID.
+
+    e.g. decompose_fmt_id(fmt_id(my_book["id"])) == my_book
+    """
     return db.from_id(int(id[1:]))
 
 # --- Generic Getters --- #
 def get_entry_term(name: str) -> str:
+    """Returns the entry data from a tk.variable."""
     return variable(name).get().strip()
 
 def replace_tree_content(tree: ttk.Treeview, fields: Iterable[str], items: Iterable[dict[str, Any] | tuple[dict[str, Any], str]]):
+    """Replaces every element in a tree with new rows.
+
+    fields: Field names for the columns.
+    items: An Iterable with a dict that has the values for the row.
+        if the item is a tuple, the second element is the colour information for the row.
+    """
     tree.delete(*tree.get_children())
     for item in items:
         if isinstance(item, dict):
@@ -519,20 +632,34 @@ def replace_tree_content(tree: ttk.Treeview, fields: Iterable[str], items: Itera
             tree.item(iid, tags=item[1])
 
 def get_tree_selection(tree: ttk.Treeview) -> list[str] | None:
+    """Returns the currently selected row."""
     try:
         return tree.item(tree.selection()[0])["values"]
     except IndexError:	return
 
 # --- Search Page Functions & Callbacks --- #
 def get_search_tree_side(side: int) -> ttk.Treeview:
+    """Return treeview from search page.
+
+    side: 0 == left side
+    side: 1 == right side
+    """
     return state["search"]["tree"][side]
 
 def search_group_input_cb():
+    """Callback on group text entry.
+
+    Replaces the tree content based on the new group search term.
+    """
     term = get_entry_term("group")
     tree = get_search_tree_side(0)
     replace_tree_content(tree, db.FIELD_VISUAL_GROUP, search.generate_group(term))
 
 def search_group_list_cb(tree: ttk.Treeview):
+    """Callback on group tree selection.
+
+    Sets the active group to the row selected.
+    """
     try:
         value: list[str] = list(map(str, tree.item(tree.selection()[0])["values"]))
     except IndexError:	return
@@ -542,6 +669,12 @@ def search_group_list_cb(tree: ttk.Treeview):
             return active_group(group)
 
 def search_book_input_cb():
+    """Callback on book text search.
+
+    Replaces the tree content based on the new book ID search term.
+    The ID must be one that is also in the book group.
+    Active on a new book group.
+    """
     term = get_entry_term("book")
     group_hash = db.hash_group(active_group())
     replace_tree_content(get_search_tree_side(1), FIELD_SEARCH_BOOK, ((i | checkout.get_log(i), colour_lookup(i)) for i in search.fuzzy_id(term) if \
@@ -549,6 +682,12 @@ def search_book_input_cb():
 on_cb("group", lambda group: search_book_input_cb())
 
 def search_book_list_cb(tree: ttk.Treeview):
+    """Callback on book tree selection.
+
+    Sets the active book to the row selected.
+    Also enables and changes the checkout return
+    button at the bottom of the search page.
+    """
     value = get_tree_selection(tree)
     if value is None:	return
     btn: tk.Button = state["search"]["checkout"]
@@ -562,7 +701,16 @@ def search_book_list_cb(tree: ttk.Treeview):
     btn["state"] = tk.NORMAL
 
 # --- Checkout Return Page --- #
+
+# Retcheck is anything common to both checkout and return
+
 def search_to_retcheck():
+    """Helper function to transfer from the search page
+    to retcheck.
+
+    Sets the search term in retcheck to display the actively selected group.
+    Also pre-selects the book with the correct ID.
+    """
     book = active_book()
     variable("bookid").set(f"{book['title']} {book['author']}")
     tree: ttk.Treeview = state["retcheck"]["tree"]
@@ -575,15 +723,33 @@ def search_to_retcheck():
     show_page("retcheck")
 
 def retcheck_input_cb():
+    """Callback on retcheck book searcher.
+
+    Replaces the tree content with all books found in a fuzzy search
+    using the entry term.
+    """
     term: str = get_entry_term("bookid")
     replace_tree_content(state["retcheck"]["tree"], FIELD_RETCHECK, ((b | checkout.get_log(b), colour_lookup(b)) for b in search.fuzzy(term)))
 
 def retcheck_tree_cb(tree: ttk.Treeview):
+    """Callback on the main book treeview.
+
+    Once selected, set it as the active book.
+    """
     value = get_tree_selection(tree)
     if value is None:	return
     book = active_book(decompose_fmt_id(value[0]))
 
 def retcheck_member_cb():
+    """Callback when the member text field is written too.
+
+    Ensures only valid characters are inputted / converted.
+    It also limits to 4 character length.
+
+    It updates the tree content for both treeviews below it.
+    Replaces the members, and if the member is valid:
+    show all active books.
+    """
     var: tk.StringVar = variable("member")
     term: str = var.get()
     original = term
@@ -610,11 +776,15 @@ def retcheck_member_cb():
         replace_tree_content(tree, FIELD_MEMBER, ({"member":m} for m in sorted(db.members()) if term in m))
 
 def retcheck_members_list_cb(tree: ttk.Treeview):
+    """Once a member is selected, update the checked-out book treeview below."""
     value = get_tree_selection(tree)
     if value is None:	return
     variable("member").set(value[0])
 
 def retcheck_member_list_cb(tree: ttk.Treeview):
+    """Callback when a book is selected, set it as the active.
+    So it can be returned faster.
+    """
     value = get_tree_selection(tree)
     if value is None:	return
     book = decompose_fmt_id(value[0])
@@ -628,6 +798,7 @@ def retcheck_member_list_cb(tree: ttk.Treeview):
             return
 
 def retcheck_title_update(book: db.Book):
+    """Updates the title of the retcheck section."""
     if checkout.checked_out(book):
         page = "return"
         variable("member").set(book["member"])
@@ -637,6 +808,10 @@ def retcheck_title_update(book: db.Book):
 on_cb("book", retcheck_title_update)
 
 def retcheck_btn_update():
+    """Updates the button text for checking out and return.
+
+    If no member / book is selected, it will be disabled.
+    """
     btn: tk.Button = state["retcheck"]["btn"]
     member = active_member()
     book = active_book()
@@ -649,11 +824,17 @@ def retcheck_btn_update():
     else:
         btn["state"] = tk.DISABLED
         btn["text"] = fmt_retcheck_btn(f"{state['retcheck']['title']['text']}: {fmt_id(book['id'])}")
+
+# Updates the button whenever a new book or member is selected.
 _retcheck_btn_update_cb = lambda any: retcheck_btn_update()
 on_cb("book", _retcheck_btn_update_cb)
 on_cb("member", _retcheck_btn_update_cb)
 
 def retcheck_btn():
+    """Checks-out / Returns the active book.
+
+    Updates treeviews to update the colour change.
+    """
     book = active_book()
     if checkout.checked_out(book):
         breturn.submit(book)
@@ -672,19 +853,16 @@ def retcheck_btn():
             tree.see(child)
             break
 
-def resize(wig):
-    if wig is not root:
-        return
-    search_group_input_cb()
-
 # --- Updating Status Bar --- #
 def set_status_group(group: db.Group):
+    """Hides and Shows relevant fields on the status bar for a new Group."""
     req = db.FIELD_NAMES_GROUP
     status_clear_not_req(req)
     for key in req:
         update_status(key, group[key])
 
 def set_status_book(book: db.Book):
+    """Hides and Shows relevant fields on the status bar for a new Book."""
     req = db.FIELD_NAMES_BOOK
     status_clear_not_req(req)
     for key in req[:-1]:
@@ -692,13 +870,16 @@ def set_status_book(book: db.Book):
     update_status(req[-1], book[req[-1]] if checkout.checked_out(book) else None)
 
 def set_status_member(member: db.Member):
+    """Shows relevant fields on the status bar for a new Member."""
     update_status("member", member)
 
 def status_clear_not_req(req: Iterable[str]):
+    """Hides all fields not in req."""
     for key in (set(STATUS_FIELDS) - set(req)):
         update_status(key)
 
 def update_status(key: str, value=None):
+    """Shows or Hides a field on the status bar."""
     swap = key in ("member",)
     ws: tuple[tk.Label, tk.Label] = state["status"][key.lower()]
     change = (lambda w: w.pack_forget()) if value is None else (lambda w: w.pack(side=tk.RIGHT if swap else tk.LEFT))
@@ -722,5 +903,4 @@ root.state("zoomed")
 setup_screen(root)
 show_page("search")
 root.update()
-resize(root)
 root.mainloop()
