@@ -5,6 +5,7 @@ import database.database as db
 
 Genre: TypeAlias = str
 Recommendation: TypeAlias = tuple[db.GroupHash, int]
+# A GroupHash and its matches
 
 def engine_init() -> tuple[dict[Genre, int], dict[int, int], dict[Genre, set[db.GroupHash]]]:
     genres: dict[Genre, int] = defaultdict(int)
@@ -34,6 +35,13 @@ def engine_update():
     genres, read, genre_groups = engine_init()
 
 def recommendation(member: db.Member) -> tuple[dict[Genre, int], Iterable[Genre], Generator[Recommendation, None, None]]:
+    """Generates Recommendations for a member.
+
+    Returns:
+        The read genre counts - Number of times each genre was read by this member.
+        An Iterable of the top genres used in the recommendation system.
+        The Recommendation Generator object.
+    """
     member_genres: dict[Genre, int] = defaultdict(int)
     member_books = [db.from_id(log["id"]) | log for log in reversed(db.logs()) if log["member"] == member]
 
@@ -54,23 +62,33 @@ def recommendation(member: db.Member) -> tuple[dict[Genre, int], Iterable[Genre]
 
     return member_genres, top_genres, (gh for gh in generate_recommendations(top_genre_groups) if gh[0] not in member_read)
 
-SizeChange: TypeAlias = tuple[int]
-SIZE_CHANGE: SizeChange = (1,)
-
 def generate_recommendations(genre_seq: Sequence[Sequence[Genre]]) -> Generator[Recommendation, None, None]:
+    """Generates Recommendations from groups of genres.
+
+    Produces unique Book Group recommendations using the genres,
+    yielding the highest matching to the genres and most read first.
+    """
     done: set[db.GroupHash] = {None}
     for perm_group in combine_permutations(genre_seq):
         head, tail = perm_group[:-1], perm_group[-1]
-        genres = {g for gs in head for g in gs}
+        genres = {g for gs in head for g in gs} # Flattern the genre groups
         iterators = [compatible_books(genres.union(g)) for g in tail]
+
+        # Evenly exhausts the iterators as so no genre combination gets priority
         for groups in (filter(None, tup) for tup in itertools.zip_longest(*iterators)):
-            x = sorted(groups, key=lambda x: read[x[0]], reverse=True)
-            for group, matches in x:
+            # sorted by number of global reads
+            for group, matches in sorted(groups, key=lambda x: read[x[0]], reverse=True):
                 if group not in done:
                     done.add(group)
                     yield (group, matches)
 
 def combine_permutations(genres_seq: Sequence[Sequence[Genre]]) -> Generator[Sequence[Sequence[Genre] | Iterator[Sequence[Genre]]], None, None]:
+    """Generates combination groups from genres in decreasing size order.
+
+    Yields a single combination e.g. [("Fantasy", "Classics"), ("Children"), <Combinations>]
+    where combinations is an iterator of different combinations (all the same length).
+    """
+    # Yield nothing to make it a generator when we've reached the end of the sequence
     if not genres_seq:	return (yield from ())
     genres = genres_seq[0]
     genres_sub = genres_seq[1:]
@@ -82,19 +100,34 @@ def combine_permutations(genres_seq: Sequence[Sequence[Genre]]) -> Generator[Seq
     yield from ((i,) for i in permutation_groups(genres))
 
 def permutation_groups(genres: Sequence[Genre]) -> Generator[Iterator[Sequence[Genre]], None, None]:
+    """Generates all different length Iterators of combinations.
+
+    In decreasing size, creates the combinations of genres,
+    until its just single genres.
+    """
     yield iter((genres,))
     for size in reversed(range(1, len(genres))):
         yield itertools.combinations(genres, size)
 
-def compatible_books(genres: Sequence[Genre]):
+def compatible_books(genres: Sequence[Genre]) -> Generator[Recommendation, None, None]:
+    """Generates Recommendations which have all of the genres.
+
+    A recommendation has the GroupHash and the number of genres.
+    The number of genres is important for match %.
+    """
     it = iter(genres)
     size = len(genres)
     return ((i, size) for i in generate_compatible(it, genre_groups[next(it)].copy()))
 
 def generate_compatible(genres: Iterator[Genre], compat: set[db.GroupHash]) -> Iterable[db.GroupHash]:
+    """Return an Iterable of GroupHashes in which
+    a group must contain every genere in the Iterator genres
+    """
     try:
+        # Take intersection of previous BookGroups and this genres
         compat &= genre_groups[next(genres)]
         return generate_compatible(genres, compat)
     except StopIteration:
         gtable = db.group_table()
+        # Sort by the most read
         return sorted(compat, key=lambda gh: (read[gh], gtable[gh]["title"]), reverse=True)

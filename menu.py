@@ -300,8 +300,6 @@ def setup_main_recommend(parent: tk.Frame):
     ws["tree"] = tree
     configure_tree(tree, (("match", False), ("reads", False), "title", "author"))
 
-on_cb("member", lambda member: variable("recommend").set(member))
-
 def setup_figure(parent: tk.Frame):
     fig = Figure(figsize=(24, 24), dpi=100)
     canvas = FigureCanvasTkAgg(fig, master=parent)  # A tk.DrawingArea.
@@ -357,7 +355,7 @@ def configure_tree(tree: ttk.Treeview, size_names: Iterable[str | tuple[str, boo
 
 # --- Tabs --- #
 
-def iter_rec() -> Generator[Recommendation, None, None]:
+def iter_rec() -> Generator[recommend.Recommendation, None, None]:
     data = state["recommend"]["data"]
     member = active_member()
     if data["member"] != member:
@@ -374,7 +372,7 @@ def iter_rec() -> Generator[Recommendation, None, None]:
         memory.append(item)
         yield item
 
-def rec_size(size: int) -> Iterator[Recommendation]:
+def rec_size(size: int) -> Iterator[recommend.Recommendation]:
     for tup, _ in zip(iter_rec(), range(size)):
         yield tup
 
@@ -389,7 +387,7 @@ def split_name(name: str) -> str:
     out += name
     return out
 
-def plot_matches_data(data: Iterator[Recommendation]):
+def plot_matches_data(data: Iterator[recommend.Recommendation]):
     matches: dict[float, int] = defaultdict(int)
     for _, percent in data:
         matches[percent] += 1
