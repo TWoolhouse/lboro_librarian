@@ -1,4 +1,4 @@
-Requires: Python 3.10 & Matplotlib 3.5.0. Run menu.py
+Requires: Python 3.10 (Due to TypeAlias) & Matplotlib 3.5.0. Run menu.py
 Usage:
 	The 3 tabs on the side are search, checkout / return, and recommend respectively.
 
